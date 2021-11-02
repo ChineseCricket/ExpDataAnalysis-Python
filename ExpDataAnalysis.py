@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-version 3.7-a 发行版
+version 3.8-a 发行版
 
 @author: 张靖毅
 
@@ -69,7 +69,7 @@ class ExpDataAnalysis:
               '各测量列的自由度为:',DegreeofFreedom,
               sep='\n')
         return Average, BslStd, AvgBslStd, DegreeofFreedom
-    def Plot(self, xlabel = '', ylabel = '', title = '', figsize = (8,6), FileAdress = ''):
+    def Plot(self, labels = [0], xlabel = '', ylabel = '', title = '', figsize = (8,6), FileAdress = ''):
         '''
         返回：画布，子图
         '''
@@ -82,8 +82,15 @@ class ExpDataAnalysis:
         plt.rcParams['font.sans-serif'] = ['SimHei']
         plt.rcParams['axes.unicode_minus'] = False
         fig, ax = plt.subplots(1,1, figsize = figsize)
-        for l in self.L:
-            ax.plot(self.A, l, marker = '+')
+        i = 0
+        if all(labels):
+            for l in self.L:
+                ax.plot(self.A, l, marker = '+', label=labels[i])
+                i+=1
+            ax.legend(frameon=False)
+        else:
+            for l in self.L:
+                ax.plot(self.A, l, marker = '+')
         ax.grid()
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
@@ -155,6 +162,7 @@ class ExpDataAnalysis:
             A = np.vstack([A, np.ones(A.shape)]).T
             return np.sqrt(np.diag(sigma * np.linalg.inv(np.matmul(A.T, A)))), np.array(v)
         fig, ax = plt.subplots(1,1, figsize = figsize)
+        i = 0
         for l in L:
             l = l.astype(np.float64)
             line = np.polyfit(A, l, 1)
@@ -162,8 +170,9 @@ class ExpDataAnalysis:
             D, V = LinearVarience(A, l)
             a = round(norm.ppf(ci / 100 + (1 - ci / 100) / 2), 2)
             sns.regplot(A, l, ax = ax, line_kws = {'label':'%s = (%f$\pm$%f)%s + (%f$\pm$%f)\n$R^2=%f$'
-                        %(yname, line[0], a*D[0], xname, line[1], a*D[1], r2)}, ci = ci, marker='+')
+                        %(yname[i], line[0], a*D[0], xname[i], line[1], a*D[1], r2)}, ci = ci, marker='+')
             ax.scatter(A, l, marker = '+')
+            i += 1
         ax.grid()
         ax.legend(frameon = False)
         ax.set_xlabel(xlabel)
