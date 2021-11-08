@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-version 3.8-a 发行版
+version 3.9-a 发行版
 
 @author: 张靖毅
 
