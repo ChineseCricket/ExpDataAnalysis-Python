@@ -69,7 +69,7 @@ class ExpDataAnalysis:
               '各测量列的自由度为:',DegreeofFreedom,
               sep='\n')
         return Average, BslStd, AvgBslStd, DegreeofFreedom
-    def Plot(self, labels = [0], xlabel = '', ylabel = '', title = '', figsize = (8,6), FileAdress = ''):
+    def Plot(self, labels = [0], xlabel = '', ylabel = '', xscale='linear', yscale='linear',title = '', figsize = (8,6), FileAdress = ''):
         '''
         返回：画布，子图
         '''
@@ -94,6 +94,8 @@ class ExpDataAnalysis:
         ax.grid()
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
+        ax.set_xscale(xscale)
+        ax.set_yscale(yscale)
         fig.suptitle(title)
         if FileAdress != '':
             fig.savefig(FileAdress)
