@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-version 3.9-a 发行版
+version 4.0-a 发行版
 
 @author: 张靖毅
 
@@ -10,10 +10,10 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 from sympy import *
-from scipy.interpolate import make_interp_spline
 from scipy.stats import norm
 from sklearn.metrics import r2_score
 from scipy.stats import t
+from scipy.optimize import curve_fit
 """
 
 import numpy as np
@@ -21,10 +21,10 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 from sympy import *
-from scipy.interpolate import make_interp_spline
 from scipy.stats import norm
 from sklearn.metrics import r2_score
 from scipy.stats import t
+from scipy.optimize import curve_fit
 
 class ExpDataAnalysis:
     '''
@@ -100,34 +100,7 @@ class ExpDataAnalysis:
         if FileAdress != '':
             fig.savefig(FileAdress)
         return fig, ax
-    def CurvePlot(self, xlabel = '', ylabel = '', title = '', figsize = (8,6), FileAdress = ''):
-        '''
-        返回：画布，子图
-        '''
-        if pd.isnull(xlabel):
-            xlabel = ''
-        if pd.isnull(ylabel):
-            ylabel = ''
-        if pd.isnull(title):
-            title = ''
-        plt.rcParams['font.sans-serif'] = ['SimHei']
-        plt.rcParams['axes.unicode_minus'] = False
-        fig, ax = plt.subplots(1,1, figsize = figsize)
-        for l in self.L:
-            x = np.linspace(self.A.min(), self.A.max(), 1000)
-            model0 = make_interp_spline(self.A, l)
-            ls = model0(x)
-            ax.plot(x, ls, label = '')
-            ax.scatter(self.A, l, marker = '+')
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        fig.suptitle(title)
-        ax.grid()
-        if FileAdress != '':
-            fig.savefig(FileAdress)
-        return fig, ax
-    def LinearPlot(self, xname = 'x', yname = 'y', xlabel = '', ylabel = '', title = '',
-                   figsize = (8, 6), ci = 99.74, FileAdress = ''):
+    def LinearfitPlot(self, xname = 'x', yname = 'y', xlabel = '', ylabel = '', title = '', xcale='linear', yscale='linear', figsize = (8, 6), ci = 99.74, FileAdress = ''):
         '''
         返回：画布，子图，线性最小二乘参数，线性最小二乘参数误差，残差列。默认置信概率99.74%。
         '''
@@ -179,10 +152,55 @@ class ExpDataAnalysis:
         ax.legend(frameon = False)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
+        ax.set_xscale(xscale)
+        ax.set_yscale(yscale)
         fig.suptitle(title)
         if FileAdress != '':
             fig.savefig(FileAdress)
         return fig, ax, line, D, V, r2
+    def CurvefitPlot(self, func, init, method = 'trf', xname = 'x', yname = 'y', xlabel = '', ylabel = '', labels=[''], xscale='linear', yscale='linear', title = '', figsize = (8,6), ci = 95, FileAdress = ''):
+        '''
+        单变量非线性函数拟合，并给出指定置信概率下的拟合参数精度估计值。
+        func：欲拟合之函数，其参数的第一项为自变量，后各项为欲拟合之参数；
+        init：欲拟合之参数的迭代初值。
+        默认置信概率为ci=95（%）。
+        返回：画布，子图，拟合参数，拟合参数精度估计。
+        '''
+        L=self.L
+        A=self.A
+        if pd.isnull(xlabel):
+            xlabel = ''
+        if pd.isnull(ylabel):
+            ylabel = ''
+        if pd.isnull(title):
+            title = ''
+        plt.rcParams['font.sans-serif'] = ['SimHei']
+        plt.rcParams['axes.unicode_minus'] = False
+        fig, ax = plt.subplots(1,1, figsize = figsize)
+        para=np.zeros([L.shape[0],func.__code__.co_argcount-1]).astype(float)
+        para_std=np.zeros([L.shape[0],func.__code__.co_argcount-1]).astype(float)
+        No=0
+        a = round(norm.ppf(ci / 100 + (1 - ci / 100) / 2), 2)
+        for l in L:
+            para[No], para_cov = curve_fit(func, A, l, init, method=method)
+            para_std[No] = a*np.sqrt(para_cov.diagonal())
+            ax.scatter(A,l,marker='+',c='r',label='实验数据')
+            if xscale=='linear':
+                X=np.linspace(A[0],A[-1],num=10000)
+            if xscale=='log':
+                X=np.exp(np.linspace(np.log(A[0]),np.log(A[-1]),num=10000))
+            ax.plot(X,func(X,*para[No]),label='拟合曲线')
+            No=No+1
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_xscale(xscale)
+        ax.set_yscale(yscale)
+        ax.legend(frameon=False)
+        fig.suptitle(title)
+        ax.grid()
+        if FileAdress != '':
+            fig.savefig(FileAdress)
+        return fig, ax, para, para_std
     def UncertaintyReport(self, exData = pd.DataFrame([]), func = 0, ci = 99.73, reslab = 'X',resunit = ''):
         '''
         可选传入参数及其默认值：
