@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-version 4.0-a 发行版
+version 5.0-a 发行版
 
 @author: 张靖毅
 
@@ -44,6 +44,7 @@ class ExpDataAnalysis:
         if type(A) != int:
             self.A = A.astype(np.float64)[0]
         self.L = L.astype(np.float64)
+
     def BasicAnalysis(self):
         '''
         分析全部传入的因变量数据的均值、测量列的贝塞尔标准差和平均值的贝塞尔标准差及自由度
@@ -69,6 +70,7 @@ class ExpDataAnalysis:
               '各测量列的自由度为:',DegreeofFreedom,
               sep='\n')
         return Average, BslStd, AvgBslStd, DegreeofFreedom
+
     def Plot(self, labels = [0], xlabel = '', ylabel = '', xscale='linear', yscale='linear',title = '', figsize = (8,6), FileAdress = ''):
         '''
         返回：画布，子图
@@ -100,7 +102,8 @@ class ExpDataAnalysis:
         if FileAdress != '':
             fig.savefig(FileAdress)
         return fig, ax
-    def LinearfitPlot(self, xname = 'x', yname = 'y', xlabel = '', ylabel = '', title = '', xcale='linear', yscale='linear', figsize = (8, 6), ci = 99.74, FileAdress = ''):
+
+    def LinearfitPlot(self, xname = 'x', yname = 'y', xlabel = '', ylabel = '', title = '', xscale='linear', yscale='linear', figsize = (8, 6), ci = 99.74, FileAdress = ''):
         '''
         返回：画布，子图，线性最小二乘参数，线性最小二乘参数误差，残差列。默认置信概率99.74%。
         '''
@@ -158,6 +161,7 @@ class ExpDataAnalysis:
         if FileAdress != '':
             fig.savefig(FileAdress)
         return fig, ax, line, D, V, r2
+
     def CurvefitPlot(self, func, init, method = 'trf', xname = 'x', yname = 'y', xlabel = '', ylabel = '', labels=[''], xscale='linear', yscale='linear', title = '', figsize = (8,6), ci = 95, FileAdress = ''):
         '''
         单变量非线性函数拟合，并给出指定置信概率下的拟合参数精度估计值。
@@ -201,6 +205,34 @@ class ExpDataAnalysis:
         if FileAdress != '':
             fig.savefig(FileAdress)
         return fig, ax, para, para_std
+
+    def UnequalAccuracyMeasurement(exData, data=[]):
+        '''
+        data与exData都是np.array形式
+        data测量列平均值汇总
+        '''
+        if (len(data) != 0):
+            mean_data = []
+            std_data=[]
+            for item in data:
+                n=len(item)
+                mean_data.append(np.array(item).mean())
+                std_data.append(np.array(item).std()*(n/(n-1))**0.5)
+            mean_set = np.array(mean_data + list(exData[0]))
+            std_set = np.array(std_data + list(exData[1]))
+        else:
+            mean_set = np.array(list(exData[0]))
+            std_set = np.array(list(exData[1]))
+        # 权重设置
+        weight = 1 / std_set ** 2
+        v_i = mean_set - mean_set.mean()
+        m = len(data) + len(exData[0])
+        numerator = (v_i ** 2 * weight).sum()
+        denominator = weight.sum()
+        sigma_st = (numerator / denominator) ** 0.5
+        print("测量列的均值为：", mean_set.mean(), "测量列的标准差为：", sigma_st)
+        return mean_set.mean(), sigma_st
+
     def UncertaintyReport(self, exData = pd.DataFrame([]), func = 0, ci = 99.73, reslab = 'X',resunit = ''):
         '''
         可选传入参数及其默认值：
@@ -227,66 +259,97 @@ class ExpDataAnalysis:
             resunit = ''
         '''
         Average, BslStd, AvgBslStd, DFA = self.BasicAnalysis()
-        if exData.shape[0] != 0:
-            Average = np.append(Average, exData[0])
-            AvgBslStd = np.append(AvgBslStd, exData[1])
-            DFA = np.append(DFA, exData[2])
-            Average = np.array(pd.DataFrame(Average).dropna().T.iloc[0])
-            AvgBslStd = np.array(pd.DataFrame(AvgBslStd).dropna().T.iloc[0])
-            DFA = np.array([x for x in DFA if x != -1])
-        if func != 0:
-            value = func(Average)
-            print('间接测量量：',value)
-            para = func.__code__.co_varnames
-            X = symbols(','.join(para[1:]))
-            if type(X) == Symbol:
-                X = [X]
-            print('所有参数为:',','.join(para[1:]))
-            sigma = dict(zip(X,AvgBslStd))
-            print(sigma)
-            values = dict(zip(X,Average))
-            dfas = dict(zip(X,DFA))
-            ures = 0
-            print('传递系数和各项标准不确定度：')
-            i = 1
-            for x in X:
-                a = diff(func(X),x)
-                av = diff(func(X),x).subs(values)
-                print('a{}'.format(x),'=',a,'=',av)
-                uv = av*sigma[x]
-                print('u{}'.format(i),'=a{}*u{}'.format(x,x),'=',uv)
-                ures += uv**2
-                i += 1
-            i = 1
+        #对单变量函数进行单独分析
+        dfres=DFA[0]
+        if (len(self.L)==1 and len(exData)==0):
+            if func != 0:
+                para = func.__code__.co_varnames
+                x=Symbol(para[1])
+                value=func(x).evalf(subs={x:Average[0]})
+                #定义传递系数
+                av=diff(func(x)).evalf(subs={x:Average[0]})
+                print("传递系数为：",av)
+                k = t.ppf(ci / 100 + (1 - ci / 100) / 2, float(dfres))
+                ures=av*AvgBslStd[0]
+                print('包含因子k =', k)
+                print('不确定度报告：\n\\begin{equation}\n%s=\\bar{%s}\\pm U_{%s}\\approx(%f\\pm %f)%s\n\\end{equation}'%(reslab,reslab,reslab,value,k*ures,resunit),
+                            '\n其中展伸不确定度$U_{%s}={k}\\times{u_{%s}}\\approx%f%s$，是由合成标准不确定度$u_{%s}\\approx%f%s$和包含因子$k\\approx%f$确定的，k是依据置信概率$P=%.2f\\%%$和自由度$\\nu\\approx%.2f$查t分布表得到的。'
+                            %(reslab,reslab,k*ures,resunit,reslab,ures,resunit,k,ci,dfres))
+        elif (len(self.L)==0 and len(exData)!=0):
+            dfres=exData[2][0]
+            print('平均值为:', exData[0][0],
+                  '平均值的标准差为:', exData[1][0],
+                  '测量列的自由度为:', exData[2][0])
+            if func != 0:
+                para = func.__code__.co_varnames
+                x=Symbol(para[1])
+                value=func(x).evalf(subs={x:exData[0][0]})
+                #定义传递系数
+                av=diff(func(x)).evalf(subs={x:exData[0][0]})
+                print("传递系数为：",av)
+                k = t.ppf(ci / 100 + (1 - ci / 100) / 2, float(exData[2][0]))
+                ures=av*exData[1][0]
+                print('包含因子k =', k)
+                print('不确定度报告：\n\\begin{equation}\n%s=\\bar{%s}\\pm U_{%s}\\approx(%f\\pm %f)%s\n\\end{equation}'%(reslab,reslab,reslab,value,k*ures,resunit),
+                            '\n其中展伸不确定度$U_{%s}={k}\\times{u_{%s}}\\approx%f%s$，是由合成标准不确定度$u_{%s}\\approx%f%s$和包含因子$k\\approx%f$确定的，k是依据置信概率$P=%.2f\\%%$和自由度$\\nu\\approx%.2f$查t分布表得到的。'
+                            %(reslab,reslab,k*ures,resunit,reslab,ures,resunit,k,ci,dfres))
+        #多变量函数分析
         else:
-            if Average.shape[-1] == 1:
-                value = Average[0]
-                ures = AvgBslStd**2
-                print('u =', AvgBslStd[0])
-            else:
-                raise ValueError('传入了太多变量！')
-        ures=sqrt(ures)
-        print('合成标准不确定度u =',ures)
-        print('各自由度分量:')
-        if DFA.shape[0] == Average.shape[0]:
-            if DFA.shape[0] > 1:
-                dfres = 0
+            if exData.shape[0] != 0:
+                Average = np.append(Average, exData[0])
+                AvgBslStd = np.append(AvgBslStd, exData[1])
+                DFA = np.append(DFA, exData[2])
+                Average = np.array(pd.DataFrame(Average).dropna().T.iloc[0])
+                AvgBslStd = np.array(pd.DataFrame(AvgBslStd).dropna().T.iloc[0])
+                DFA = np.array([x for x in DFA if x != -1])
+            if func != 0:
+                value = func(Average)
+                print('间接测量量：',value)
+                para = func.__code__.co_varnames
+                X = symbols(','.join(para[1:]))
+                if type(X) == Symbol:
+                    X = [X]
+                print('所有参数为:',','.join(para[1:]))
+                sigma = dict(zip(X,AvgBslStd))
+                print(sigma)
+                values = dict(zip(X,Average))
+                dfas = dict(zip(X,DFA))
+                ures = 0
+                print('传递系数和各项标准不确定度：')
+                i = 1
                 for x in X:
-                    print('ν{}'.format(x),'=',dfas[x])
                     a = diff(func(X),x)
                     av = diff(func(X),x).subs(values)
+                    print('a{}'.format(x),'=',a,'=',av)
                     uv = av*sigma[x]
-                    dfres += (uv**4)/dfas[x]
-            if DFA.shape[0] == 1:
-                print('ν','=',DFA[0])
-                dfres = ures**4/DFA[0]
-        else:
-            raise ValueError('测量列自由度数量不匹配！')
-        dfres = (ures**4)/dfres
-        print('合成自由度ν =', dfres)
-        k = t.ppf(ci/100 + (1 - ci/100) / 2, float(dfres))
-        print('包含因子k =', k)
-        print('不确定度报告：\n\\begin{equation}\n%s=\\bar{%s}\\pm U_{%s}\\approx(%f\\pm %f)%s\n\\end{equation}'%(reslab,reslab,reslab,value,k*ures,resunit),
-              '\n其中展伸不确定度$U_{%s}={k}\\times{u_{%s}}\\approx%f%s$，是由合成标准不确定度$u_{%s}\\approx%f%s$和包含因子$k\\approx%f$确定的，k是依据置信概率$P=%.2f\\%%$和自由度$\\nu\\approx%.2f$查t分布表得到的。'
-              %(reslab,reslab,k*ures,resunit,reslab,ures,resunit,k,ci,dfres))
+                    print('u{}'.format(i),'=a{}*u{}'.format(x,x),'=',uv)
+                    ures += uv**2
+                    i += 1
+                i = 1
+            else:
+                raise ValueError('传入了太多变量！')
+            ures=sqrt(ures)
+            print('合成标准不确定度u =',ures)
+            print('各自由度分量:')
+            if DFA.shape[0] == Average.shape[0]:
+                if DFA.shape[0] > 1:
+                    dfres = 0
+                    for x in X:
+                        print('ν{}'.format(x),'=',dfas[x])
+                        a = diff(func(X),x)
+                        av = diff(func(X),x).subs(values)
+                        uv = av*sigma[x]
+                        dfres += (uv**4)/dfas[x]
+                if DFA.shape[0] == 1:
+                    print('ν','=',DFA[0])
+                    dfres = ures**4/DFA[0]
+            else:
+                raise ValueError('测量列自由度数量不匹配！')
+            dfres = (ures**4)/dfres
+            print('合成自由度ν =', dfres)
+            k = t.ppf(ci/100 + (1 - ci/100) / 2, float(dfres))
+            print('包含因子k =', k)
+            print('不确定度报告：\n\\begin{equation}\n%s=\\bar{%s}\\pm U_{%s}\\approx(%f\\pm %f)%s\n\\end{equation}'%(reslab,reslab,reslab,value,k*ures,resunit),
+                '\n其中展伸不确定度$U_{%s}={k}\\times{u_{%s}}\\approx%f%s$，是由合成标准不确定度$u_{%s}\\approx%f%s$和包含因子$k\\approx%f$确定的，k是依据置信概率$P=%.2f\\%%$和自由度$\\nu\\approx%.2f$查t分布表得到的。'
+                %(reslab,reslab,k*ures,resunit,reslab,ures,resunit,k,ci,dfres))
         return value,k,ures,dfres
