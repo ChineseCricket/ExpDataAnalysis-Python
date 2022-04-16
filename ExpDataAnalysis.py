@@ -32,9 +32,10 @@ class ExpDataAnalysis:
         BasicAnalysis 基本统计量：
             计算因变量平均值、测量列的贝塞尔标准差、平均值的贝塞尔标准差、自由度；
         Plot 进行原始数据折线作图；
-        CurvePlot 插值光滑曲线作图；
         LinearPlot 线性拟合作图并计算最小二乘参数的精度、残差列及相关系数；
-        UncertaintyReport 完整的markdown格式不确定度报告。
+        CurvefitPlot 单变量非线性函数拟合，并给出指定置信概率下的拟合参数精度估计值；
+        UnequalAccuracyMeasurement 不等精度测量列的误差计算；
+        UncertaintyReport 完整的latex格式的间接测量量不确定度报告。
     请按照如下示例传入：
     ExpData(因变量测量列，自变量测量列)
     自变量测量列应当是1*n二维np矩阵
@@ -208,6 +209,7 @@ class ExpDataAnalysis:
 
     def UnequalAccuracyMeasurement(exData, data=[]):
         '''
+        不等精度测量列不确定度计算。
         data与exData都是np.array形式
         data测量列平均值汇总
         '''
